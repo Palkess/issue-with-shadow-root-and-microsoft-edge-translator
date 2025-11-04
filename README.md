@@ -1,0 +1,1 @@
+# issue-with-shadow-root-and-microsoft-edge-translator
