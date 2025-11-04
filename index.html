@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Edge Translation + Shadow DOM Test</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 2rem;
+            max-width: 600px;
+        }
+
+        section {
+            margin-bottom: 3rem;
+            padding: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+
+        button {
+            margin-top: 0.5rem;
+            padding: 0.3rem 0.8rem;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Microsoft Edge Translation + Shadow DOM Test</h1>
+    <p>
+        This page demonstrates a translation issue in Microsoft Edge: text inside a shadow root
+        is not properly re-translated after being hidden and shown again.
+    </p>
+
+    <hr>
+
+    <section>
+        <h2>Basic Shadow DOM (no workaround)</h2>
+        <shadow-demo-basic></shadow-demo-basic>
+    </section>
+
+    <section>
+        <h2>Shadow DOM with "DOM nudge" workaround</h2>
+        <p>
+            This version adds a temporary attribute to the light DOM when the shadow DOM changes.
+            Chrome re-triggers translation when this happens — but Edge does not.
+        </p>
+        <shadow-demo-nudged></shadow-demo-nudged>
+    </section>
+
+    <script type="module">
+        //
+        // Basic Shadow DOM component
+        //
+        class ShadowDemoBasic extends HTMLElement {
+            constructor() {
+                super();
+                this.attachShadow({ mode: "open" });
+                this.shadowRoot.innerHTML = `
+          <div class="content-container">
+            <p id="label">Hello, this text should be translated.</p>
+            <button id="toggle">Hide / Show text</button>
+          </div>
+        `;
+            }
+
+            toggleLabel() {
+                const label = this.shadowRoot.getElementById("label");
+                if (label) {
+                    label.remove();
+                } else {
+                    const newLabel = document.createElement("p");
+                    newLabel.id = "label";
+                    newLabel.textContent = "Hello, this text should be translated.";
+                    this.shadowRoot.querySelector(".content-container").prepend(newLabel);
+                }
+            }
+
+            connectedCallback() {
+                const btn = this.shadowRoot.getElementById("toggle");
+                const label = this.shadowRoot.getElementById("label");
+                btn.addEventListener("click", () => {
+                    this.toggleLabel();
+                });
+            }
+        }
+
+        //
+        // Shadow DOM with a "DOM nudge" workaround
+        //
+        class ShadowDemoNudged extends HTMLElement {
+            constructor() {
+                super();
+                this.attachShadow({ mode: "open" });
+                this.shadowRoot.innerHTML = `
+          <div class="content-container">
+            <p id="label">Hello, this text should be translated.</p>
+            <button id="toggle">Hide / Show text</button>
+          </div>
+        `;
+            }
+
+            toggleLabel() {
+                const label = this.shadowRoot.getElementById("label");
+                if (label) {
+                    label.remove();
+                } else {
+                    const newLabel = document.createElement("p");
+                    newLabel.id = "label";
+                    newLabel.textContent = "Hello, this text should be translated.";
+                    this.shadowRoot.querySelector(".content-container").prepend(newLabel);
+                }
+            }
+
+            connectedCallback() {
+                const btn = this.shadowRoot.getElementById("toggle");
+                const label = this.shadowRoot.getElementById("label");
+
+                btn.addEventListener("click", () => {
+                    this.toggleLabel();
+                });
+
+                // Observe shadow DOM changes and "nudge" light DOM
+                const observer = new MutationObserver(() => {
+                    // Trigger a light-DOM nudge — helps Chrome detect translation changes
+                    document.body.toggleAttribute("data-shadow-dom-nudge");
+                    // Restore after a short delay
+                    setTimeout(() => document.body.toggleAttribute("data-shadow-dom-nudge"), 50);
+                });
+
+                observer.observe(this.shadowRoot, {
+                    subtree: true,
+                    childList: true,
+                    characterData: true,
+                    attributes: true,
+                });
+
+                this._observer = observer;
+            }
+
+            disconnectedCallback() {
+                this._observer?.disconnect();
+            }
+        }
+
+        customElements.define("shadow-demo-basic", ShadowDemoBasic);
+        customElements.define("shadow-demo-nudged", ShadowDemoNudged);
+    </script>
+</body>
+
+</html>
